@@ -1,0 +1,63 @@
+---
+name: riscv64 compatibility test
+
+# Smoke-test that all pip dependencies install on a native riscv64 runner,
+# then verify the application can at least be imported without errors.
+
+on:
+  push:
+    branches: [feat/riscv64-support]
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  pip-install:
+    name: pip install on riscv64
+    runs-on: ubuntu-24.04-riscv
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Python version
+        run: /opt/python-3.12/bin/python3.12 --version
+
+      - name: Create virtualenv
+        run: >-
+          /opt/python-3.12/bin/python3.12 -m venv /tmp/pegaprox-venv
+
+      - name: Install dependencies
+        run: >-
+          /tmp/pegaprox-venv/bin/pip install --no-cache-dir -r requirements.txt
+
+      - name: Smoke-test imports
+        run: |
+          /tmp/pegaprox-venv/bin/python3 - <<'EOF'
+          import flask
+          import cryptography
+          import paramiko
+          import gevent
+          import jwt
+          import ldap3
+          import pyotp
+          import qrcode
+          print("All core imports successful")
+          EOF
+
+  docker-build:
+    name: Docker build on riscv64
+    runs-on: ubuntu-24.04-riscv
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (no push)
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          platforms: linux/riscv64
+          push: false
+          tags: pegaprox:riscv64-test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
