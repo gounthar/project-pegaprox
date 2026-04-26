@@ -20,7 +20,6 @@ jobs:
 
       - name: Discover Python and install build deps
         run: |
-          # Find the available Python 3 interpreter
           PYTHON=$(command -v python3.12 \
             || command -v python3 \
             || find /opt -name 'python3.12' 2>/dev/null | head -1)
@@ -28,18 +27,26 @@ jobs:
           $PYTHON --version
           echo "PYTHON=$PYTHON" >> "$GITHUB_ENV"
 
-          # python3-cryptography from apt avoids the Rust edition-2024
-          # requirement that Ubuntu 24.04's bundled Rust cannot satisfy.
           # python3-dev is required by cffi and other C-extension packages.
           sudo apt-get update -q
           sudo apt-get install -y --no-install-recommends \
             python3-venv python3-dev \
-            python3-cryptography \
-            gcc libffi-dev libssl-dev
+            build-essential libffi-dev libssl-dev \
+            curl ca-certificates
+
+      - name: Install Rust via rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+            sh -s -- -y --default-toolchain stable
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 
       - name: Create virtualenv and install dependencies
+        env:
+          # maturin maps Python's riscv64-linux-gnu SOABI to the wrong triple;
+          # override to the correct rustup target name.
+          CARGO_BUILD_TARGET: riscv64gc-unknown-linux-gnu
         run: |
-          $PYTHON -m venv --system-site-packages /tmp/pegaprox-venv
+          $PYTHON -m venv /tmp/pegaprox-venv
           /tmp/pegaprox-venv/bin/pip install \
             --no-cache-dir -r requirements.txt
 

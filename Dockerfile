@@ -1,23 +1,33 @@
 FROM ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV CARGO_HOME=/usr/local/cargo
+ENV PATH=/usr/local/cargo/bin:$PATH
 
-# python3-cryptography installed from apt: it is pre-built for riscv64 by Ubuntu
-# and avoids the Rust edition-2024 requirement that Ubuntu 24.04's bundled Rust
-# (1.75) cannot satisfy.  python3-dev is required by cffi and other C-extension
-# packages (gevent, Pillow) that pip builds from source.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv python3-dev \
-    python3-cryptography \
     build-essential libffi-dev libssl-dev \
+    curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
+
+# Rustup + stable Rust (>=1.85) is required to build cryptography from source
+# on riscv64; no PyPI wheel exists for this architecture yet.
+#
+# CARGO_BUILD_TARGET overrides maturin's faulty triple detection: Python's SOABI
+# cpython-312-riscv64-linux-gnu maps to "riscv64-unknown-linux-gnu" in maturin
+# but rustup only knows "riscv64gc-unknown-linux-gnu".  Without this override
+# maturin prints "Target triple not supported by rustup" and aborts.
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
+    sh -s -- -y --default-toolchain stable --no-modify-path \
+    && rustc --version \
+    && cargo --version
+
+ENV CARGO_BUILD_TARGET=riscv64gc-unknown-linux-gnu
 
 WORKDIR /build
 COPY requirements.txt .
-
-# --system-site-packages lets pip see apt's python3-cryptography, which satisfies
-# the cryptography>=41.0.0 requirement without a source build.
-RUN python3 -m venv --system-site-packages /opt/venv \
+RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 FROM ubuntu:24.04
@@ -33,11 +43,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Runtime needs python3-cryptography at the system level because the venv was
-# created with --system-site-packages and relies on finding it there.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
-    python3-cryptography \
     libffi8 libssl3 \
     openssh-client sshpass \
     && rm -rf /var/lib/apt/lists/*
