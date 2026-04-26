@@ -1,8 +1,8 @@
 ---
 name: riscv64 compatibility test
 
-# Smoke-test that all pip dependencies install on a native riscv64 runner,
-# then verify the application can at least be imported without errors.
+# Smoke-test that all pip deps install on a native riscv64 runner,
+# then verify the application can be imported without errors.
 
 on:
   push:
@@ -18,16 +18,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Python version
-        run: /opt/python-3.12/bin/python3.12 --version
+      - name: Discover Python and install build deps
+        run: |
+          # Find the available Python 3 interpreter
+          PYTHON=$(command -v python3.12 \
+            || command -v python3 \
+            || find /opt -name 'python3.12' 2>/dev/null | head -1)
+          echo "Using Python: $PYTHON"
+          $PYTHON --version
+          echo "PYTHON=$PYTHON" >> "$GITHUB_ENV"
 
-      - name: Create virtualenv
-        run: >-
-          /opt/python-3.12/bin/python3.12 -m venv /tmp/pegaprox-venv
+          # Build deps for packages without riscv64 wheels (e.g. cryptography)
+          sudo apt-get update -q
+          sudo apt-get install -y --no-install-recommends \
+            cargo rustc gcc libffi-dev libssl-dev
 
-      - name: Install dependencies
-        run: >-
-          /tmp/pegaprox-venv/bin/pip install --no-cache-dir -r requirements.txt
+      - name: Create virtualenv and install dependencies
+        run: |
+          $PYTHON -m venv /tmp/pegaprox-venv
+          /tmp/pegaprox-venv/bin/pip install \
+            --no-cache-dir -r requirements.txt
 
       - name: Smoke-test imports
         run: |
