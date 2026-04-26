@@ -5,7 +5,8 @@ set -e
 if [ "$1" = "configure" ]; then
 
     if ! id "pegaprox" &>/dev/null; then
-        useradd --system --home /usr/lib/pegaprox --create-home --shell /usr/sbin/nologin --group nogroup pegaprox
+        useradd --system --home /usr/lib/pegaprox --create-home \
+            --shell /usr/sbin/nologin --group nogroup pegaprox
         echo "User 'pegaprox' created."
     else
         echo "User 'pegaprox' already exists, skipping creation."
@@ -19,6 +20,13 @@ if [ "$1" = "configure" ]; then
     chmod 750 /var/lib/pegaprox
     chown pegaprox:pegaprox /usr/lib/pegaprox/pegaprox/api/.ssh_ws_server.py
     chmod +x /usr/lib/pegaprox/pegaprox/api/.ssh_ws_server.py
+
+    # flask-sock and simple-websocket have no Ubuntu 24.04 packages.
+    # Install them into a --system-site-packages venv so the rest of the
+    # apt-installed python3-* dependencies remain visible to the app.
+    VENV=/usr/lib/pegaprox/venv
+    python3 -m venv --system-site-packages "$VENV"
+    "$VENV/bin/pip" install --no-cache-dir flask-sock
 
     systemctl enable pegaprox.service
     systemctl restart pegaprox.service || true

@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+#DEBHELPER#
+if [ "$1" = "remove" ] || [ "$1" = "upgrade" ]; then
+    if [ -d /usr/lib/pegaprox/venv ]; then
+        rm -rf /usr/lib/pegaprox/venv
+    fi
+fi

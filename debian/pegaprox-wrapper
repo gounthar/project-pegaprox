@@ -1,2 +1,2 @@
 #!/bin/sh
-exec /usr/bin/python3 /usr/lib/pegaprox/pegaprox_multi_cluster.py "$@"
+exec /usr/lib/pegaprox/venv/bin/python3 /usr/lib/pegaprox/pegaprox_multi_cluster.py "$@"
