@@ -2,17 +2,22 @@ FROM ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Build stage includes Rust toolchain so cryptography can compile from source
-# on architectures without pre-built PyPI wheels (e.g. riscv64)
+# python3-cryptography installed from apt: it is pre-built for riscv64 by Ubuntu
+# and avoids the Rust edition-2024 requirement that Ubuntu 24.04's bundled Rust
+# (1.75) cannot satisfy.  python3-dev is required by cffi and other C-extension
+# packages (gevent, Pillow) that pip builds from source.
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 python3-pip python3-venv \
-    gcc cargo rustc \
-    libffi-dev libssl-dev \
+    python3 python3-pip python3-venv python3-dev \
+    python3-cryptography \
+    gcc libffi-dev libssl-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /build
 COPY requirements.txt .
-RUN python3 -m venv /opt/venv \
+
+# --system-site-packages lets pip see apt's python3-cryptography, which satisfies
+# the cryptography>=41.0.0 requirement without a source build.
+RUN python3 -m venv --system-site-packages /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir -r requirements.txt
 
 FROM ubuntu:24.04
@@ -28,17 +33,17 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
 ENV PATH="/opt/venv/bin:$PATH"
 
-# Runtime stage: no Rust, only what the app needs at run time
+# Runtime needs python3-cryptography at the system level because the venv was
+# created with --system-site-packages and relies on finding it there.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
+    python3-cryptography \
     libffi8 libssl3 \
     openssh-client sshpass \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user
 RUN groupadd -r pegaprox && useradd -r -g pegaprox -d /app -s /bin/false pegaprox
 
-# Copy pre-built virtualenv from builder (no Rust carried into runtime image)
 COPY --from=builder /opt/venv /opt/venv
 
 WORKDIR /app
