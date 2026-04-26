@@ -7,7 +7,8 @@ ENV PATH=/usr/local/cargo/bin:$PATH
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 python3-pip python3-venv python3-dev \
-    build-essential libffi-dev libssl-dev \
+    build-essential pkg-config libffi-dev libssl-dev \
+    libjpeg-dev \
     curl ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
